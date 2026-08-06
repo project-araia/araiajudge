@@ -7,12 +7,12 @@ Documents are judged by the model as "relevant", "maybe", or "irrelevant" based 
 
 #### Examples
 
-With ANL Argo access.
+Primary run with ANL Argo access.
 
 ```bash
 araiajudge data/all_weather_sectionized \
   --prompt prompts/climate/climate_resilience_relevance.md \
-  --argo-user $ARGO_USER \
+  --argo-user $ARGO_USER
 ```
 
 Run on ALCF's Sophia cluster. `gpt-oss-120b` is the default model.
@@ -30,7 +30,30 @@ araiajudge /path/to/docs --dry-run --limit 5
 araiajudge /path/to/docs --keep-decisions relevant,maybe --copy-kept
 ```
 
-#### Usage
+#### Advanced Examples
+
+Supposing that the previous command is still running, 
+append a **parallel session** using a different backend (writes per-session files):
+
+```bash
+araiajudge data/all_weather_sectionized \
+  --append-session \
+  --prompt prompts/climate/climate_resilience_relevance.md \
+  --anl-llm-service ALCF-METIS \
+  --api-key $API_KEY
+```
+
+If restarting the first process, opt in to per-session outputs (no append):
+
+```bash
+araiajudge /path/to/sectionized/docs \
+  --session-id primary \
+  --prompt prompts/climate/climate_resilience_relevance.md \
+  --anl-llm-service ARGO \
+  --argo-user $ARGO_USER
+```
+
+#### Full Usage
 
 ```bash
 Usage: araiajudge [OPTIONS] SOURCE
@@ -60,30 +83,40 @@ Options:
   --keep-decisions TEXT           Comma-separated decisions copied by --copy-kept.  [default: relevant]
   --resume / --no-resume          Skip completed stable job keys from judge_checkpoint.json.
                                   [default: resume]
+  --append-session                Join an existing run; write per-session files and coordinate via per-doc locks.
+                                  In this mode, summaries aggregate across all session result files. Session checkpoints are separate.
+  --session-id TEXT               Optional session label. Defaults to timestamp-pid-host when session mode is active.
+  --lock-ttl INTEGER              Seconds after which a stale per-doc lock can be stolen.  [default: 600; x>=1]
 ```
 
 The command preserves source data and writes judgment artifacts outside the input directory:
 
 ```text
 SOURCE_judged/
-  judge_results.jsonl.gz
-  judge_summary.json
-  judge_checkpoint.json
-  failures.json
+  judge_results.jsonl.gz                 # legacy (non-session) results
+  judge_decisions.csv                    # legacy (non-session) decisions
+  judge_summary.json                     # aggregated summary (session-aware when session mode is used)
+  judge_checkpoint.json                  # legacy checkpoint (non-session)
+  failures.json                          # legacy failures
+  judge_results.<session-id>.jsonl.gz    # per-session results (when --append-session or --session-id is used)
+  judge_decisions.<session-id>.csv       # per-session decisions
+  judge_checkpoint.<session-id>.json     # per-session checkpoint
+  failures.<session-id>.json             # per-session failures
+  locks/                                 # advisory per-doc locks for concurrent sessions
   kept/
 ```
 
-#### Service presets
+#### Service Presets
 - ARGO (default): base `https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/`; default model `claudesonnet46`.
 - ALCF-SOPHIA: base `https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1`; default model `openai/gpt-oss-120b`.
 - ALCF-METIS: base `https://inference-api.alcf.anl.gov/resource_server/metis/api/v1`; default model `openai/gpt-oss-120b`.
 - ALCF-MINERVA: base `https://inference-api.alcf.anl.gov/resource_server/minerva/api/v1`; default model `openai/gpt-oss-120b`.
 - ANL-ASKSAGE: base `https://api.asksage.anl.gov/server/openai/v1`; default model `gpt_5.4_nano`. Use OpenAI-style models/options only when targeting AskSage (for now).
 
-#### Result schema and resume
-- Each result row in `judge_results.jsonl.gz` includes doc_id, source_path, title, model, base URL, prompt and input hashes, decision, score, rationale, raw response, parse status, and timestamp.
-- Resume is enabled by default. Completed work is keyed by source path, document ID, input hash, prompt hash, model, and base URL, so changing any of these forces re-judgment.
-- Summary artifacts include resume-skipped and malformed-file counts, elapsed time, and throughput.
+#### Result Schema, Resume, and Sessions
+- Each result row in `judge_results*.jsonl.gz` includes doc_id, source_path, title, model, base URL, prompt and input hashes, decision, score, rationale, raw response, parse status, and timestamp.
+- Resume is enabled by default. Legacy checkpointing (`judge_checkpoint.json`) keys completions by source path, document ID, input hash, prompt hash, model, and base URL. In session mode, cross-session skipping also uses a provider‑agnostic key that ignores base URL.
+- Summary artifacts include resume-skipped and malformed-file counts, elapsed time, and throughput. In session mode, the summary aggregates across all session result files for the same model and prompt.
 - `--output-dir` must be outside `SOURCE` so the command cannot recurse into its own artifacts.
 
 #### Copy-kept

@@ -159,6 +159,8 @@ def run_requests(
     decision_csv_path: Path,
     argo_user: str | None,
     progress: Progress,
+    lock_dir: Path | None = None,
+    lock_ttl: int = 600,
 ) -> dict[str, Any]:
     stats = {
         "succeeded": 0,
@@ -241,6 +243,13 @@ def run_requests(
                     }
                 )
                 progress.log(f"* Error judging {job['doc']['source_path']}: {e}")
+            finally:
+                # Always release lock if we created one
+                if lock_dir is not None and (lp := job.get("_lock_path")) is not None:
+                    try:
+                        lp.unlink(missing_ok=True)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
             stats["attempted"] += 1
             elapsed = time.perf_counter() - started_at
             stats["elapsed_seconds"] = elapsed
@@ -252,6 +261,10 @@ def run_requests(
                 f"* Progress: {stats['attempted']} done at {rate:.2f}/s; "
                 f"decisions={dict(sorted(stats['decision_counts'].items()))}"
             )
+
+    # Prepare lock directory if locking enabled
+    if lock_dir is not None:
+        lock_dir.mkdir(parents=True, exist_ok=True)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
         pending: dict[concurrent.futures.Future, dict[str, Any]] = {}
@@ -265,6 +278,37 @@ def run_requests(
                 except StopIteration:
                     exhausted = True
                     break
+                # Acquire lock if enabled; if not acquired, skip this job
+                if lock_dir is not None:
+                    lock_path = lock_dir / f"{job.get('shared_key', job['key'])}.lock"
+                    acquired = False
+                    try:
+                        # Try exclusive create
+                        with lock_path.open("x", encoding="utf-8") as f:
+                            f.write(now_iso())
+                        acquired = True
+                    except FileExistsError:
+                        try:
+                            mtime = lock_path.stat().st_mtime
+                        except FileNotFoundError:
+                            mtime = 0
+                        # If stale, try to steal
+                        if time.time() - mtime > lock_ttl:
+                            try:
+                                lock_path.unlink()
+                            except FileNotFoundError:
+                                pass
+                            try:
+                                with lock_path.open("x", encoding="utf-8") as f:
+                                    f.write(now_iso())
+                                acquired = True
+                            except FileExistsError:
+                                acquired = False
+                        else:
+                            acquired = False
+                    if not acquired:
+                        continue
+                    job["_lock_path"] = lock_path
                 pending[executor.submit(call, job)] = job
             if pending:
                 drain_one(pending)

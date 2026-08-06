@@ -96,6 +96,7 @@ def summarize_results_file(
             input_sha256 = row.get("input_sha256")
             if expected_input_hashes.get(source_path) != input_sha256:
                 continue
+            # Keep legacy filter including base_url so single-file summaries behave as before.
             if row.get("model") != model or row.get("base_url") != base_url:
                 continue
             if row.get("prompt_sha256") != prompt_sha256:
@@ -110,6 +111,53 @@ def summarize_results_file(
             decision = row.get("decision")
             if decision:
                 summary["decision_counts"][decision] = summary["decision_counts"].get(decision, 0) + 1
+    return summary
+
+
+def summarize_results_directory(
+    output_dir: Path,
+    *,
+    model: str,
+    prompt_sha256: str,
+    expected_input_hashes: dict[str, str],
+) -> dict[str, Any]:
+    """Aggregate all judge_results*.jsonl.gz under output_dir, ignoring base_url.
+
+    Deduplicates by (source_path, input_sha256). First-seen row wins if duplicates exist.
+    """
+    summary = {"succeeded": 0, "parse_failures": 0, "decision_counts": {}}
+    seen_keys: set[tuple[str, str]] = set()
+    # Collect all result files: legacy and per-session
+    files = sorted(output_dir.glob("judge_results*.jsonl.gz"))
+    for path in files:
+        if not path.exists():
+            continue
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                source_path = row.get("source_path")
+                input_sha256 = row.get("input_sha256")
+                if expected_input_hashes.get(source_path) != input_sha256:
+                    continue
+                if row.get("model") != model:
+                    continue
+                if row.get("prompt_sha256") != prompt_sha256:
+                    continue
+                row_key = (source_path, input_sha256)
+                if row_key in seen_keys:
+                    continue
+                seen_keys.add(row_key)
+                summary["succeeded"] += 1
+                if not row.get("parsed", False):
+                    summary["parse_failures"] += 1
+                decision = row.get("decision")
+                if decision:
+                    summary["decision_counts"][decision] = summary["decision_counts"].get(decision, 0) + 1
     return summary
 
 
