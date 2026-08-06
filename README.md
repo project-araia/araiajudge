@@ -6,14 +6,18 @@ Input documents are flat JSON files containing fields such as `title`, `abstract
 Documents are judged by the model as "relevant", "maybe", or "irrelevant" based on the prompt.
 
 #### Examples
+
+With ANL Argo access.
+
 ```bash
 araiajudge data/all_weather_sectionized \
   --prompt prompts/climate/climate_resilience_relevance.md \
   --argo-user $ARGO_USER \
 ```
 
+Run on ALCF's Sophia cluster. `gpt-oss-120b` is the default model.
+
 ```bash
-# Run on ALCF's Sophia cluster. gpt-oss-120b is default model.
 araiajudge /path/to/sectionized/docs \
   --anl-llm-service ALCF-SOPHIA \
   --api-key $API_KEY \
@@ -45,12 +49,12 @@ Options:
   -o, --output-dir PATH
                                   Directory for araiajudge artifacts/work files (results,
                                   checkpoints, summary). Defaults to SOURCE_judged.
-  --concurrency INTEGER RANGE     Concurrent requests.  [default: 4; x>=1]
-  --max-tokens INTEGER RANGE      Maximum generated tokens.  [default: 512; x>=1]
-  --timeout FLOAT RANGE           Per-request timeout in seconds.  [default: 120.0; x>=1.0]
-  --limit INTEGER RANGE           Judge at most N documents. No limit by default.  [x>=1]
+  --concurrency INTEGER           Concurrent requests.  [default: 4; x>=1]
+  --max-tokens INTEGER            Maximum generated tokens.  [default: 512; x>=1]
+  --timeout FLOAT                 Per-request timeout in seconds.  [default: 120.0; x>=1.0]
+  --limit INTEGER                 Judge at most N documents. No limit by default.  [x>=1]
   --dry-run                       Build and print prompt samples without calling the model.
-  --max-input-chars INTEGER RANGE Maximum document payload characters included in each prompt.
+  --max-input-chars INTEGER       Maximum document payload characters included in each prompt.
                                   [default: 20000; x>=100]
   --copy-kept                     Copy documents with kept decisions into OUTPUT_DIR/kept.
   --keep-decisions TEXT           Comma-separated decisions copied by --copy-kept.  [default: relevant]
@@ -70,7 +74,7 @@ SOURCE_judged/
 ```
 
 #### Service presets
-- ARGO: base `https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/`; default model `claudesonnet46`.
+- ARGO (default): base `https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/`; default model `claudesonnet46`.
 - ALCF-SOPHIA: base `https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1`; default model `openai/gpt-oss-120b`.
 - ALCF-METIS: base `https://inference-api.alcf.anl.gov/resource_server/metis/api/v1`; default model `openai/gpt-oss-120b`.
 - ALCF-MINERVA: base `https://inference-api.alcf.anl.gov/resource_server/minerva/api/v1`; default model `openai/gpt-oss-120b`.
