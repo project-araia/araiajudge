@@ -6,6 +6,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
+import araiajudge.docs
 import araiajudge.runners as runners
 from araiajudge import agentic_judge_dataset
 from araiajudge.cli import parse_keep_decisions
@@ -33,6 +34,18 @@ def _make_job(doc_id: str, prompt: str) -> dict:
 
 
 class TestIterSectionizedDocs:
+    def test_skips_malformed_json(self, tmp_path):
+        source = tmp_path / "sectionized"
+        source.mkdir()
+        (source / "bad.json").write_text("{not json", encoding="utf-8")
+        _write_sectionized_doc(source / "good.json", title="Grid")
+
+        stats = {}
+        docs = list(araiajudge.docs.iter_sectionized_docs_stream(source, stats))
+
+        assert [doc["doc_id"] for doc in docs] == ["good"]
+        assert stats["malformed_files"] == 1
+
     def test_walks_nested_json_and_skips_reports(self, tmp_path):
         source = tmp_path / "sectionized"
         _write_sectionized_doc(
@@ -129,6 +142,46 @@ class TestKeepDecisionsValidation:
 
 
 class TestAgenticJudgeCli:
+    def test_connection_check_runs_before_requests(self, tmp_path, monkeypatch):
+        source = tmp_path / "sectionized"
+        output = tmp_path / "judged"
+        prompt = tmp_path / "rubric.md"
+        prompt.write_text("Judge utility relevance.", encoding="utf-8")
+        _write_sectionized_doc(source / "00" / "1.json", title="Grid", abstract="Storms")
+        checks = []
+        responses = iter(['{"decision":"relevant","score":3,"rationale":"Matches."}'])
+
+        def fake_check(**kwargs):
+            checks.append(kwargs)
+            return "OK"
+
+        def fake_completion(**kwargs):
+            return next(responses)
+
+        monkeypatch.setattr("araiajudge.cli.check_provider_connection", fake_check)
+        monkeypatch.setattr(runners, "chat_completion_with_retries", fake_completion)
+
+        result = CliRunner().invoke(
+            agentic_judge_dataset,
+            [
+                str(source),
+                "--prompt",
+                str(prompt),
+                "--output-dir",
+                str(output),
+                "--api-key",
+                "secret",
+                "--anl-llm-service",
+                "ALCF-SOPHIA",
+                "--concurrency",
+                "1",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert len(checks) == 1
+        assert "Connection check succeeded: OK" in result.output
+
     def test_dry_run_prints_prompts_without_api_key(self, tmp_path):
         source = tmp_path / "sectionized"
         prompt = tmp_path / "rubric.md"
@@ -192,6 +245,7 @@ class TestAgenticJudgeCli:
         _write_sectionized_doc(source / "00" / "2.json", title="Other", abstract="None", intro="Other text")
         responses = iter(
             [
+                "OK",
                 '{"decision":"relevant","score":3,"rationale":"Matches."}',
                 '{"decision":"irrelevant","score":0,"rationale":"No match."}',
             ]
@@ -212,6 +266,8 @@ class TestAgenticJudgeCli:
                 str(output),
                 "--api-key",
                 "secret",
+                "--anl-llm-service",
+                "ALCF-SOPHIA",
                 "--concurrency",
                 "1",
                 "--copy-kept",
@@ -231,6 +287,9 @@ class TestAgenticJudgeCli:
         assert not (output / "kept" / "00" / "2.json").exists()
         summary = json.loads((output / "judge_summary.json").read_text(encoding="utf-8"))
         assert summary["api_key_provided"] is True
+        assert summary["malformed_files"] == 0
+        assert summary["resume_skipped"] == 0
+        assert summary["throughput_docs_per_second"] > 0
         assert "secret" not in (output / "judge_summary.json").read_text(encoding="utf-8")
         checkpoint = json.loads((output / "judge_checkpoint.json").read_text(encoding="utf-8"))
         assert len(checkpoint["completed_keys"]) == 2
@@ -250,7 +309,9 @@ class TestAgenticJudgeCli:
 
         responses = iter(
             [
+                "OK",
                 '{"decision":"relevant","score":3,"rationale":"Matches."}',
+                "OK",
                 '{"decision":"irrelevant","score":0,"rationale":"No match."}',
             ]
         )
@@ -269,6 +330,8 @@ class TestAgenticJudgeCli:
                 str(output),
                 "--api-key",
                 "secret",
+                "--anl-llm-service",
+                "ALCF-SOPHIA",
                 "--concurrency",
                 "1",
                 "--limit",
@@ -287,6 +350,8 @@ class TestAgenticJudgeCli:
                 str(output),
                 "--api-key",
                 "secret",
+                "--anl-llm-service",
+                "ALCF-SOPHIA",
                 "--concurrency",
                 "1",
             ],
@@ -342,9 +407,10 @@ class TestAgenticJudgeCli:
         )
 
         assert result.exit_code == 0, result.output
-        assert len(calls) == 1
-        assert calls[0]["argo_user"] == "user1"
-        assert calls[0]["model"] == "claudesonnet46"
+        assert len(calls) == 2
+        assert calls[0]["prompt"] == "Reply with OK."
+        assert calls[1]["argo_user"] == "user1"
+        assert calls[1]["model"] == "claudesonnet46"
         with gzip.open(output / "judge_results.jsonl.gz", "rt", encoding="utf-8") as f:
             rows = [json.loads(line) for line in f]
         assert rows[0]["decision"] == "relevant"

@@ -16,8 +16,8 @@ from araiajudge.docs import (
     iter_sectionized_docs,
     iter_sectionized_docs_stream,
 )
-from araiajudge.jobs import prepare_doc_jobs, prepare_doc_jobs_stream
-from araiajudge.runners import run_requests_mode
+from araiajudge.jobs import prepare_doc_jobs_stream
+from araiajudge.runners import check_connection as check_provider_connection, run_requests
 from araiajudge.util import load_json, sha256_text
 
 
@@ -74,12 +74,14 @@ def _write_judge_run_artifacts(
     keep_decisions: set[str],
     copy_kept: bool,
     current_run_attempted: int,
+    malformed_files: int,
+    resume_skipped: int,
     result_path: Path,
     summary_path: Path,
     failures_path: Path,
     api_key_provided: bool,
 ) -> None:
-    # Failures are written by run_requests_mode; remove stale file on success
+    # Failures are written by run_requests; remove stale file on success
     if stats.get("failures"):
         failures_path.write_text(json.dumps(stats["failures"], indent=2), encoding="utf-8")
     elif failures_path.exists():
@@ -121,6 +123,9 @@ def _write_judge_run_artifacts(
         current_run_parse_failures=stats["parse_failures"],
         retries=4,
         api_key_provided=api_key_provided,
+        malformed_files=malformed_files,
+        resume_skipped=resume_skipped,
+        elapsed_seconds=stats.get("elapsed_seconds", 0.0),
     )
 
 
@@ -262,21 +267,17 @@ def agentic_judge_dataset(
     discovered_count = count_sectionized_doc_files(source)
     click.echo(f"Scanning source: {discovered_count} candidate JSON files")
 
-    docs_iter: Iterable[dict]
-    docs_iter = iter_sectionized_docs_stream(source)
+    discovery_stats: dict[str, int] = {}
+    docs_iter: Iterable[dict] = iter_sectionized_docs_stream(source, discovery_stats)
     if limit is not None:
         docs_iter = itertools.islice(docs_iter, limit)
 
     checkpoint_path = output_dir / "judge_checkpoint.json"
     checkpoint = load_json(checkpoint_path, {"completed_keys": []}) if resume else {"completed_keys": []}
     completed_keys = set(checkpoint.get("completed_keys", []))
-
-    # Materialize the jobs list for requests
-    docs_list = iter_sectionized_docs(source)
-    if limit is not None:
-        docs_list = docs_list[:limit]
-    jobs = prepare_doc_jobs(
-        docs=docs_list,
+    job_stats: dict[str, int] = {}
+    jobs = prepare_doc_jobs_stream(
+        docs=docs_iter,
         rubric=rubric,
         prompt_sha256=prompt_sha256,
         model=resolved_model,
@@ -284,15 +285,37 @@ def agentic_judge_dataset(
         max_input_chars=max_input_chars,
         completed_keys=completed_keys,
         resume=resume,
+        stats=job_stats,
     )
 
     if dry_run:
-        click.echo(f"Discovered documents: {discovered_count}")
-        click.echo(f"Would judge documents: {len(jobs)}")
-        for idx, job in enumerate(jobs[: min(5, len(jobs))], start=1):
+        samples: list[dict] = []
+        would_judge = 0
+        for job in jobs:
+            would_judge += 1
+            if len(samples) < 5:
+                samples.append(job)
+        click.echo(f"Discovered documents: {job_stats.get('discovered', 0)}")
+        click.echo(f"Skipped completed documents: {job_stats.get('resume_skipped', 0)}")
+        click.echo(f"Malformed JSON files skipped: {discovery_stats.get('malformed_files', 0)}")
+        click.echo(f"Would judge documents: {would_judge}")
+        for idx, job in enumerate(samples, start=1):
             click.echo(f"\n--- Prompt sample {idx}: {job['doc']['source_path']} ---")
             click.echo(job["prompt"])
         return
+
+    try:
+        response = check_provider_connection(
+            provider="argo" if provider_style == "argo" else "openai",
+            api_key=api_key,
+            base_url=resolved_base_url,
+            model=resolved_model,
+            argo_user=argo_user,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        raise click.UsageError(f"Connection check failed: {exc}") from exc
+    click.echo(f"Connection check succeeded: {response.strip()[:80]}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = output_dir / "judge_checkpoint.json"
@@ -302,7 +325,7 @@ def agentic_judge_dataset(
     failures_path = output_dir / "failures.json"
 
     with Progress(SpinnerColumn(), *Progress.get_default_columns(), TimeElapsedColumn()) as progress:
-        stats = run_requests_mode(
+        stats = run_requests(
             jobs=jobs,
             source=source,
             output_dir=output_dir,
@@ -335,7 +358,9 @@ def agentic_judge_dataset(
             prompt_sha256=prompt_sha256,
             keep_decisions=parsed_keep_decisions,
             copy_kept=copy_kept,
-            current_run_attempted=len(jobs),
+            current_run_attempted=stats["attempted"],
+            malformed_files=discovery_stats.get("malformed_files", 0),
+            resume_skipped=job_stats.get("resume_skipped", 0),
             result_path=result_path,
             summary_path=summary_path,
             failures_path=failures_path,
@@ -343,7 +368,11 @@ def agentic_judge_dataset(
         )
         progress.log("\n* Agentic judging complete.")
         progress.log(f"* Output directory: {output_dir}")
-        progress.log(f"* Documents attempted: {len(jobs)}")
+        progress.log(f"* Documents attempted: {stats['attempted']}")
         progress.log(f"* Documents succeeded: {stats['succeeded']}")
         progress.log(f"* Documents failed: {stats['failed']}")
         progress.log(f"* Parse failures: {stats['parse_failures']}")
+        progress.log(f"* Resume-skipped documents: {job_stats.get('resume_skipped', 0)}")
+        progress.log(f"* Malformed JSON files skipped: {discovery_stats.get('malformed_files', 0)}")
+        elapsed = stats.get("elapsed_seconds", 0.0)
+        progress.log(f"* Throughput: {stats['attempted'] / elapsed if elapsed else 0.0:.2f} docs/s")

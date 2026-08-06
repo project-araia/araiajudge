@@ -4,7 +4,7 @@ import concurrent.futures
 import random
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from rich.progress import Progress
 
@@ -109,9 +109,38 @@ def argo_completion_with_retries(
     raise RuntimeError("unreachable retry loop")
 
 
-def run_requests_mode(
+def check_connection(
     *,
-    jobs: list[dict[str, Any]],
+    provider: str,
+    api_key: str | None,
+    base_url: str,
+    model: str,
+    argo_user: str | None,
+    timeout: float,
+) -> str:
+    """Make a small request to validate provider connectivity and credentials."""
+    if provider == "argo":
+        return argo_completion_with_retries(
+            base_url=base_url,
+            model=model,
+            prompt="Reply with OK.",
+            argo_user=argo_user or "",
+            max_tokens=10,
+            timeout=timeout,
+        )
+    return chat_completion_with_retries(
+        api_key=api_key or "",
+        base_url=base_url,
+        model=model,
+        prompt="Reply with OK.",
+        max_tokens=10,
+        timeout=timeout,
+    )
+
+
+def run_requests(
+    *,
+    jobs: Iterable[dict[str, Any]],
     source: Path,
     output_dir: Path,
     provider: str,
@@ -137,8 +166,11 @@ def run_requests_mode(
         "parse_failures": 0,
         "decision_counts": {},
         "failures": [],
+        "attempted": 0,
+        "elapsed_seconds": 0.0,
     }
-    task = progress.add_task("[green]Judging documents", total=len(jobs))
+    task = progress.add_task("[green]Judging documents", total=None)
+    started_at = time.perf_counter()
 
     def call(job: dict[str, Any]) -> tuple[dict[str, Any], str]:
         if provider == "argo":
@@ -161,10 +193,13 @@ def run_requests_mode(
             )
         return job, raw
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
-        future_jobs = {executor.submit(call, job): job for job in jobs}
-        for future in concurrent.futures.as_completed(future_jobs):
-            job = future_jobs[future]
+    def drain_one(pending: dict[concurrent.futures.Future, dict[str, Any]]) -> None:
+        done, _ = concurrent.futures.wait(
+            pending,
+            return_when=concurrent.futures.FIRST_COMPLETED,
+        )
+        for future in done:
+            job = pending.pop(future)
             try:
                 job, raw_response = future.result()
                 parsed_response = parse_judge_response(raw_response)
@@ -206,5 +241,31 @@ def run_requests_mode(
                     }
                 )
                 progress.log(f"* Error judging {job['doc']['source_path']}: {e}")
-            progress.update(task, advance=1)
+            stats["attempted"] += 1
+            elapsed = time.perf_counter() - started_at
+            stats["elapsed_seconds"] = elapsed
+            rate = stats["attempted"] / elapsed if elapsed else 0.0
+            progress.update(task, advance=1, description=(
+                f"[green]Judging documents ({stats['attempted']} done, {rate:.2f}/s)"
+            ))
+            progress.log(
+                f"* Progress: {stats['attempted']} done at {rate:.2f}/s; "
+                f"decisions={dict(sorted(stats['decision_counts'].items()))}"
+            )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
+        pending: dict[concurrent.futures.Future, dict[str, Any]] = {}
+        job_iter = iter(jobs)
+        exhausted = False
+        max_inflight = concurrency * 2
+        while not exhausted or pending:
+            while not exhausted and len(pending) < max_inflight:
+                try:
+                    job = next(job_iter)
+                except StopIteration:
+                    exhausted = True
+                    break
+                pending[executor.submit(call, job)] = job
+            if pending:
+                drain_one(pending)
     return stats

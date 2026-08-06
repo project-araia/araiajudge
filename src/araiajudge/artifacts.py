@@ -158,6 +158,9 @@ def write_summary(
     current_run_parse_failures: int,
     retries: int,
     api_key_provided: bool,
+    malformed_files: int = 0,
+    resume_skipped: int = 0,
+    elapsed_seconds: float = 0.0,
 ) -> None:
     atomic_write_json(
         path,
@@ -180,6 +183,12 @@ def write_summary(
             "current_run_decision_counts": dict(sorted(current_run_decision_counts.items())),
             "current_run_parse_failures": current_run_parse_failures,
             "retries": retries,
+            "malformed_files": malformed_files,
+            "resume_skipped": resume_skipped,
+            "elapsed_seconds": elapsed_seconds,
+            "throughput_docs_per_second": (
+                current_run_attempted / elapsed_seconds if elapsed_seconds > 0 else 0.0
+            ),
             "copy_kept": copy_kept,
             "keep_decisions": sorted(keep_decisions),
             "api_key_provided": api_key_provided,

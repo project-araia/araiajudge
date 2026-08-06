@@ -83,6 +83,7 @@ SOURCE_judged/
 #### Result schema and resume
 - Each result row in `judge_results.jsonl.gz` includes doc_id, source_path, title, model, base URL, prompt and input hashes, decision, score, rationale, raw response, parse status, and timestamp.
 - Resume is enabled by default. Completed work is keyed by source path, document ID, input hash, prompt hash, model, and base URL, so changing any of these forces re-judgment.
+- Summary artifacts include resume-skipped and malformed-file counts, elapsed time, and throughput.
 - `--output-dir` must be outside `SOURCE` so the command cannot recurse into its own artifacts.
 
 #### Copy-kept

@@ -13,15 +13,24 @@ def count_sectionized_doc_files(source: Path) -> int:
     return sum(1 for path in source.rglob("*.json") if path.is_file() and path.name not in SKIP_JSON_FILENAMES)
 
 
-def iter_sectionized_docs_stream(source: Path):
+def iter_sectionized_docs_stream(source: Path, stats: dict[str, int] | None = None):
     """Yield normalized sectionized docs one at a time from *source*."""
     for path in sorted(source.rglob("*.json")):
         if not path.is_file() or path.name in SKIP_JSON_FILENAMES:
             continue
+        if stats is not None:
+            stats["candidate_files"] = stats.get("candidate_files", 0) + 1
         rel_path = path.relative_to(source).as_posix()
-        with path.open(encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with path.open(encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            if stats is not None:
+                stats["malformed_files"] = stats.get("malformed_files", 0) + 1
+            continue
         if not isinstance(data, dict):
+            if stats is not None:
+                stats["malformed_files"] = stats.get("malformed_files", 0) + 1
             continue
 
         title = normalize_ws(data.get("title"))
