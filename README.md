@@ -32,7 +32,7 @@ araiajudge /path/to/docs --keep-decisions relevant,maybe --copy-kept
 
 #### Advanced Examples
 
-Supposing that the previous command is still running, 
+Supposing that a previous command is still running,
 append a **parallel session** using a different backend (writes per-session files):
 
 ```bash
@@ -43,7 +43,7 @@ araiajudge data/all_weather_sectionized \
   --api-key $API_KEY
 ```
 
-If restarting the first process, opt in to per-session outputs (no append):
+If restarting the first process, opt in to per-session outputs (no append to previous files):
 
 ```bash
 araiajudge /path/to/sectionized/docs \

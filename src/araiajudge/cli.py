@@ -326,7 +326,7 @@ def agentic_judge_dataset(
     if append_session:
         if not output_dir.exists():
             raise click.UsageError("--append-session requires an existing output directory")
-        # Validate model/prompt against summary or checkpoint if present
+        # Validate model/prompt against summary if present
         summary_path = output_dir / "judge_summary.json"
         if summary_path.exists():
             try:
@@ -337,7 +337,9 @@ def agentic_judge_dataset(
                     )
             except Exception:
                 pass
-        # Build shared-completed by scanning all result files
+
+    # Build shared-completed by scanning all result files when in session mode
+    if session_mode and output_dir.exists():
         expected_input_hashes = {}
         for doc in iter_sectionized_docs(source):
             expected_input_hashes[doc["source_path"]] = doc_input_sha256(doc)
