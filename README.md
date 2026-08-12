@@ -11,7 +11,7 @@ Primary run with ANL Argo access.
 
 ```bash
 araiajudge data/all_weather_sectionized \
-  --prompt prompts/climate/climate_resilience_relevance.md \
+  --prompt prompts/electric_utility/araia_electric_utility_relevance.md \
   --argo-user $ARGO_USER
 ```
 
@@ -38,7 +38,7 @@ append a **parallel session** using a different backend (writes per-session file
 ```bash
 araiajudge data/all_weather_sectionized \
   --append-session \
-  --prompt prompts/climate/climate_resilience_relevance.md \
+  --prompt prompts/electric_utility/araia_electric_utility_relevance.md \
   --anl-llm-service ALCF-METIS \
   --api-key $API_KEY
 ```
@@ -48,7 +48,7 @@ If restarting the first process, opt in to per-session outputs (no append to pre
 ```bash
 araiajudge /path/to/sectionized/docs \
   --session-id primary \
-  --prompt prompts/climate/climate_resilience_relevance.md \
+  --prompt prompts/electric_utility/araia_electric_utility_relevance.md \
   --anl-llm-service ARGO \
   --argo-user $ARGO_USER
 ```
