@@ -78,7 +78,7 @@ Options:
   --limit INTEGER                 Judge at most N documents. No limit by default.  [x>=1]
   --dry-run                       Build and print prompt samples without calling the model.
   --max-input-chars INTEGER       Maximum document payload characters included in each prompt.
-                                  [default: 20000; x>=100]
+                                  [default: 50000; x>=100]
   --copy-kept                     Copy documents with kept decisions into OUTPUT_DIR/kept.
   --keep-decisions TEXT           Comma-separated decisions copied by --copy-kept.  [default: relevant]
   --resume / --no-resume          Skip completed stable job keys from judge_checkpoint.json.

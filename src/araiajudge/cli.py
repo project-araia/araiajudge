@@ -206,7 +206,7 @@ def _write_judge_run_artifacts(
 @click.option("--dry-run", is_flag=True, help="Build and print prompt samples without calling the model.")
 @click.option(
     "--max-input-chars",
-    default=20000,
+    default=50000,
     show_default=True,
     type=click.IntRange(100),
     help="Maximum document payload characters included in each prompt.",
