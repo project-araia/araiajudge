@@ -161,7 +161,16 @@ def run_requests(
     progress: Progress,
     lock_dir: Path | None = None,
     lock_ttl: int = 600,
+    backends: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    backend_configs = backends or [{
+        "service": provider.upper(),
+        "provider": provider,
+        "api_key": api_key,
+        "base_url": base_url,
+        "model": model,
+        "argo_user": argo_user,
+    }]
     stats = {
         "succeeded": 0,
         "failed": 0,
@@ -170,45 +179,62 @@ def run_requests(
         "failures": [],
         "attempted": 0,
         "elapsed_seconds": 0.0,
+        "backends": {
+            backend["service"]: {
+                "service": backend["service"],
+                "base_url": backend["base_url"],
+                "model": backend["model"],
+                "attempted": 0,
+                "succeeded": 0,
+                "failed": 0,
+            }
+            for backend in backend_configs
+        },
     }
     task = progress.add_task("[green]Judging documents", total=None)
     started_at = time.perf_counter()
 
-    def call(job: dict[str, Any]) -> tuple[dict[str, Any], str]:
-        if provider == "argo":
+    def call(job: dict[str, Any], backend: dict[str, Any]) -> tuple[dict[str, Any], str, dict[str, Any]]:
+        if backend["provider"] == "argo":
             raw = argo_completion_with_retries(
-                base_url=base_url,
-                model=model,
+                base_url=backend["base_url"],
+                model=backend["model"],
                 prompt=job["prompt"],
-                argo_user=argo_user or "",
+                argo_user=backend.get("argo_user") or "",
                 max_tokens=max_tokens,
                 timeout=timeout,
             )
         else:
             raw = chat_completion_with_retries(
-                api_key=api_key or "",
-                base_url=base_url,
-                model=model,
+                api_key=backend.get("api_key") or "",
+                base_url=backend["base_url"],
+                model=backend["model"],
                 prompt=job["prompt"],
                 max_tokens=max_tokens,
                 timeout=timeout,
             )
-        return job, raw
+        return job, raw, backend
 
-    def drain_one(pending: dict[concurrent.futures.Future, dict[str, Any]]) -> None:
+    def drain_one(pending: dict[concurrent.futures.Future, tuple[dict[str, Any], dict[str, Any]]]) -> list[dict[str, Any]]:
+        completed_backends: list[dict[str, Any]] = []
         done, _ = concurrent.futures.wait(
             pending,
             return_when=concurrent.futures.FIRST_COMPLETED,
         )
         for future in done:
-            job = pending.pop(future)
+            job, backend = pending.pop(future)
+            completed_backends.append(backend)
+            backend_stats = stats["backends"][backend["service"]]
+            backend_stats["attempted"] += 1
             try:
-                job, raw_response = future.result()
+                job, raw_response, backend = future.result()
+                backend_stats = stats["backends"][backend["service"]]
                 parsed_response = parse_judge_response(raw_response)
                 row = make_result_row(
                     doc=job["doc"],
-                    model=model,
-                    base_url=base_url,
+                    model=backend["model"],
+                    base_url=backend["base_url"],
+                    service=backend["service"],
                     prompt_sha256=prompt_sha256,
                     input_sha256=job["input_sha256"],
                     raw_response=raw_response,
@@ -225,6 +251,7 @@ def run_requests(
                     prompt_sha256=prompt_sha256,
                 )
                 stats["succeeded"] += 1
+                backend_stats["succeeded"] += 1
                 if not row["parsed"]:
                     stats["parse_failures"] += 1
                 decision = row.get("decision")
@@ -234,15 +261,18 @@ def run_requests(
                     copy_kept_doc(job["doc"], source, output_dir)
             except Exception as e:
                 stats["failed"] += 1
+                backend_stats["failed"] += 1
                 stats["failures"].append(
                     {
                         "doc_id": job["doc"]["doc_id"],
                         "source_path": job["doc"]["source_path"],
+                        "service": backend["service"],
+                        "base_url": backend["base_url"],
                         "error": str(e),
                         "created_at": now_iso(),
                     }
                 )
-                progress.log(f"* Error judging {job['doc']['source_path']}: {e}")
+                progress.log(f"* Error judging {job['doc']['source_path']} via {backend['service']}: {e}")
             finally:
                 # Always release lock if we created one
                 if lock_dir is not None and (lp := job.get("_lock_path")) is not None:
@@ -261,29 +291,32 @@ def run_requests(
                 f"* Progress: {stats['attempted']} done at {rate:.2f}/s; "
                 f"decisions={dict(sorted(stats['decision_counts'].items()))}"
             )
+        return completed_backends
 
     # Prepare lock directory if locking enabled
     if lock_dir is not None:
         lock_dir.mkdir(parents=True, exist_ok=True)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
-        pending: dict[concurrent.futures.Future, dict[str, Any]] = {}
+    backend_slots = [backend for backend in backend_configs for _ in range(concurrency)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(backend_slots)) as executor:
+        pending: dict[concurrent.futures.Future, tuple[dict[str, Any], dict[str, Any]]] = {}
         job_iter = iter(jobs)
         exhausted = False
-        max_inflight = concurrency * 2
+        available_slots = list(backend_slots)
         while not exhausted or pending:
-            while not exhausted and len(pending) < max_inflight:
+            while available_slots and not exhausted:
+                backend = available_slots.pop()
                 try:
                     job = next(job_iter)
                 except StopIteration:
                     exhausted = True
+                    available_slots.append(backend)
                     break
-                # Acquire lock if enabled; if not acquired, skip this job
+                # Acquire lock if locking enabled; if not acquired, skip this job.
                 if lock_dir is not None:
                     lock_path = lock_dir / f"{job.get('shared_key', job['key'])}.lock"
                     acquired = False
                     try:
-                        # Try exclusive create
                         with lock_path.open("x", encoding="utf-8") as f:
                             f.write(now_iso())
                         acquired = True
@@ -292,7 +325,6 @@ def run_requests(
                             mtime = lock_path.stat().st_mtime
                         except FileNotFoundError:
                             mtime = 0
-                        # If stale, try to steal
                         if time.time() - mtime > lock_ttl:
                             try:
                                 lock_path.unlink()
@@ -304,12 +336,12 @@ def run_requests(
                                 acquired = True
                             except FileExistsError:
                                 acquired = False
-                        else:
-                            acquired = False
                     if not acquired:
+                        available_slots.append(backend)
                         continue
                     job["_lock_path"] = lock_path
-                pending[executor.submit(call, job)] = job
+                pending[executor.submit(call, job, backend)] = (job, backend)
             if pending:
-                drain_one(pending)
+                available_slots.extend(drain_one(pending))
+
     return stats

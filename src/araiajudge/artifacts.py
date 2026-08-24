@@ -28,6 +28,7 @@ def make_result_row(
     input_sha256: str,
     raw_response: str,
     parsed_response: dict[str, Any],
+    service: str | None = None,
 ) -> dict[str, Any]:
     return {
         "doc_id": doc["doc_id"],
@@ -36,6 +37,7 @@ def make_result_row(
         "title": doc.get("title", ""),
         "model": model,
         "base_url": base_url,
+        "service": service,
         "prompt_sha256": prompt_sha256,
         "input_sha256": input_sha256,
         "decision": parsed_response.get("decision"),
@@ -209,6 +211,7 @@ def write_summary(
     malformed_files: int = 0,
     resume_skipped: int = 0,
     elapsed_seconds: float = 0.0,
+    backends: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     atomic_write_json(
         path,
@@ -240,6 +243,7 @@ def write_summary(
             "copy_kept": copy_kept,
             "keep_decisions": sorted(keep_decisions),
             "api_key_provided": api_key_provided,
+            "backends": backends,
             "updated_at": now_iso(),
         },
     )

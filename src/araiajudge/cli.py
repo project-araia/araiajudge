@@ -135,6 +135,7 @@ def _write_judge_run_artifacts(
         malformed_files=malformed_files,
         resume_skipped=resume_skipped,
         elapsed_seconds=stats.get("elapsed_seconds", 0.0),
+        backends=stats.get("backends"),
     )
 
 
@@ -147,11 +148,12 @@ def _write_judge_run_artifacts(
 @click.option(
     "--anl-llm-service",
     type=click.Choice(list(_SERVICE_PRESETS.keys()), case_sensitive=False),
-    default="ARGO",
+    multiple=True,
+    default=("ARGO",),
     show_default=True,
     help=(
-        "ANL inference service preset. One of ARGO, ALCF-SOPHIA, ALCF-METIS, "
-        "ALCF-MINERVA, or ANL-ASKSAGE. Overrides defaults for base URL and model."
+        "ANL inference service preset; repeat to distribute work across services. "
+        "One of ARGO, ALCF-SOPHIA, ALCF-METIS, ALCF-MINERVA, or ANL-ASKSAGE."
     ),
 )
 @click.option(
@@ -248,7 +250,7 @@ def _write_judge_run_artifacts(
 def agentic_judge_dataset(
     *,
     source: Path,
-    anl_llm_service: str,
+    anl_llm_service: tuple[str, ...],
     model: str | None,
     base_url: str | None,
     api_key: str | None,
@@ -268,13 +270,32 @@ def agentic_judge_dataset(
     session_id: str | None,
     lock_ttl: int,
 ) -> None:
-    # Resolve service preset
-    service_key = (anl_llm_service or "ALCF-SOPHIA").upper()
-    preset = _SERVICE_PRESETS.get(service_key, _SERVICE_PRESETS["ALCF-SOPHIA"])  # safe default
+    # Resolve service presets. Multiple services share one job stream and one model.
+    service_keys = tuple(dict.fromkeys((service or "ARGO").upper() for service in anl_llm_service))
+    if not service_keys:
+        service_keys = ("ARGO",)
+    if len(service_keys) > 1 and base_url:
+        raise click.UsageError("--base-url cannot be used with multiple --anl-llm-service options.")
 
-    resolved_base_url = base_url or preset["base_url"] or DEFAULT_BASE_URL
-    resolved_model = model or preset.get("default_model") or DEFAULT_MODEL
-    provider_style = preset["style"]  # "openai" or "argo"
+    resolved_model = model or _SERVICE_PRESETS[service_keys[0]].get("default_model") or DEFAULT_MODEL
+    backends = []
+    for service_key in service_keys:
+        preset = _SERVICE_PRESETS[service_key]
+        backend_model = model or preset.get("default_model") or DEFAULT_MODEL
+        if backend_model != resolved_model:
+            raise click.UsageError(
+                "Multiple backends must use one model; provide a shared --model value."
+            )
+        backends.append({
+            "service": service_key,
+            "provider": preset["style"],
+            "base_url": base_url or preset["base_url"] or DEFAULT_BASE_URL,
+            "model": resolved_model,
+            "api_key": api_key,
+            "argo_user": argo_user,
+        })
+    resolved_base_url = backends[0]["base_url"]
+    provider_style = backends[0]["provider"]
 
     # Output directory
     output_dir = output_dir or Path(str(source) + "_judged")
@@ -287,9 +308,9 @@ def agentic_judge_dataset(
 
     # Credentials validation
     if not dry_run:
-        if provider_style == "openai" and not api_key:
+        if any(backend["provider"] == "openai" for backend in backends) and not api_key:
             raise click.UsageError("Provide --api-key or set API_KEY/OPENAI_API_KEY.")
-        if provider_style == "argo" and not argo_user:
+        if any(backend["provider"] == "argo" for backend in backends) and not argo_user:
             raise click.UsageError("Provide --argo-user or set ARGO_USER.")
 
     # Prepare documents and jobs
@@ -404,18 +425,24 @@ def agentic_judge_dataset(
             click.echo(job["prompt"])
         return
 
-    try:
-        response = check_provider_connection(
-            provider="argo" if provider_style == "argo" else "openai",
-            api_key=api_key,
-            base_url=resolved_base_url,
-            model=resolved_model,
-            argo_user=argo_user,
-            timeout=timeout,
-        )
-    except Exception as exc:
-        raise click.UsageError(f"Connection check failed: {exc}") from exc
-    click.echo(f"Connection check succeeded: {response.strip()[:80]}")
+    for backend in backends:
+        try:
+            response = check_provider_connection(
+                provider=backend["provider"],
+                api_key=api_key,
+                base_url=backend["base_url"],
+                model=resolved_model,
+                argo_user=argo_user,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            raise click.UsageError(
+                f"Connection check failed for {backend['service']}: {exc}"
+            ) from exc
+        if len(backends) == 1:
+            click.echo(f"Connection check succeeded: {response.strip()[:80]}")
+        else:
+            click.echo(f"Connection check succeeded for {backend['service']}: {response.strip()[:80]}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "judge_summary.json"
@@ -457,6 +484,7 @@ def agentic_judge_dataset(
             progress=progress,
             lock_dir=lock_dir,
             lock_ttl=lock_ttl,
+            backends=backends,
         )
 
         _write_judge_run_artifacts(

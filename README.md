@@ -24,6 +24,19 @@ araiajudge /path/to/sectionized/docs \
   --output-dir results_v2
 ```
 
+Distribute one run across multiple ALCF clusters. Repeat `--anl-llm-service`; `--concurrency`
+is applied independently to each service, and all services must use the same model.
+
+```bash
+araiajudge /path/to/sectionized/docs \
+  --anl-llm-service ALCF-SOPHIA \
+  --anl-llm-service ALCF-METIS \
+  --anl-llm-service ALCF-MINERVA \
+  --api-key $API_KEY \
+  --concurrency 4 \
+  --output-dir results_distributed
+```
+
 ```bash
 araiajudge /path/to/docs --model claudesonnet5 --concurrency 8
 araiajudge /path/to/docs --dry-run --limit 5
@@ -60,8 +73,9 @@ Usage: araiajudge [OPTIONS] SOURCE
 
 Options:
   --anl-llm-service [ARGO|ALCF-SOPHIA|ALCF-METIS|ALCF-MINERVA|ANL-ASKSAGE]
-                                  ANL inference service preset. Overrides defaults for base URL
-                                  and model.  [default: ARGO]
+                                   ANL inference service preset; repeat to distribute work across
+                                   services.  [default: ARGO]
+
   --model TEXT                    Chat model name. Defaults depend on --anl-llm-service.
   --base-url TEXT                 API base URL. Overrides the URL derived from --anl-llm-service.
   --api-key TEXT                  API key/token for OpenAI-compatible endpoints (ALCF/ASKSAGE).
@@ -114,7 +128,7 @@ SOURCE_judged/
 - ANL-ASKSAGE: base `https://api.asksage.anl.gov/server/openai/v1`; default model `gpt_5.4_nano`. Use OpenAI-style models/options only when targeting AskSage (for now).
 
 #### Result Schema, Resume, and Sessions
-- Each result row in `judge_results*.jsonl.gz` includes doc_id, source_path, title, model, base URL, prompt and input hashes, decision, score, rationale, raw response, parse status, and timestamp.
+- Each result row in `judge_results*.jsonl.gz` includes doc_id, source_path, title, service, model, base URL, prompt and input hashes, decision, score, rationale, raw response, parse status, and timestamp.
 - Resume is enabled by default. Legacy checkpointing (`judge_checkpoint.json`) keys completions by source path, document ID, input hash, prompt hash, model, and base URL. In session mode, cross-session skipping also uses a provider‑agnostic key that ignores base URL.
 - Summary artifacts include resume-skipped and malformed-file counts, elapsed time, and throughput. In session mode, the summary aggregates across all session result files for the same model and prompt.
 - `--output-dir` must be outside `SOURCE` so the command cannot recurse into its own artifacts.

@@ -366,6 +366,97 @@ class TestAgenticJudgeCli:
         assert summary["current_run_attempted"] == 1
         assert summary["current_run_succeeded"] == 1
 
+    def test_distributes_work_across_multiple_services(self, tmp_path, monkeypatch):
+        source = tmp_path / "sectionized"
+        output = tmp_path / "judged"
+        prompt = tmp_path / "rubric.md"
+        prompt.write_text("Judge utility relevance.", encoding="utf-8")
+        for doc_id in range(1, 5):
+            _write_sectionized_doc(
+                source / "00" / f"{doc_id}.json",
+                title=f"Grid {doc_id}",
+                abstract="Storms",
+            )
+
+        checks = []
+        calls = []
+
+        def fake_check(**kwargs):
+            checks.append(kwargs)
+            return "OK"
+
+        def fake_completion(**kwargs):
+            calls.append(kwargs)
+            return '{"decision":"relevant","score":3,"rationale":"Matches."}'
+
+        monkeypatch.setattr("araiajudge.cli.check_provider_connection", fake_check)
+        monkeypatch.setattr(runners, "chat_completion_with_retries", fake_completion)
+
+        result = CliRunner().invoke(
+            agentic_judge_dataset,
+            [
+                str(source),
+                "--prompt",
+                str(prompt),
+                "--output-dir",
+                str(output),
+                "--api-key",
+                "secret",
+                "--anl-llm-service",
+                "ALCF-SOPHIA",
+                "--anl-llm-service",
+                "ALCF-METIS",
+                "--concurrency",
+                "1",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert {check["base_url"] for check in checks} == {
+            "https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1",
+            "https://inference-api.alcf.anl.gov/resource_server/metis/api/v1",
+        }
+        assert len(calls) == 4
+        assert {call["base_url"] for call in calls} == {
+            "https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1",
+            "https://inference-api.alcf.anl.gov/resource_server/metis/api/v1",
+        }
+
+        with gzip.open(output / "judge_results.jsonl.gz", "rt", encoding="utf-8") as f:
+            rows = [json.loads(line) for line in f]
+        assert len(rows) == 4
+        assert {row["service"] for row in rows} == {"ALCF-SOPHIA", "ALCF-METIS"}
+        summary = json.loads((output / "judge_summary.json").read_text(encoding="utf-8"))
+        assert summary["backends"]["ALCF-METIS"]["attempted"] == 2
+        assert summary["backends"]["ALCF-METIS"]["succeeded"] == 2
+        assert summary["backends"]["ALCF-SOPHIA"]["attempted"] == 2
+        assert summary["backends"]["ALCF-SOPHIA"]["succeeded"] == 2
+
+    def test_rejects_custom_url_with_multiple_services(self, tmp_path):
+        source = tmp_path / "sectionized"
+        source.mkdir()
+        prompt = tmp_path / "rubric.md"
+        prompt.write_text("rubric", encoding="utf-8")
+
+        result = CliRunner().invoke(
+            agentic_judge_dataset,
+            [
+                str(source),
+                "--prompt",
+                str(prompt),
+                "--dry-run",
+                "--anl-llm-service",
+                "ALCF-SOPHIA",
+                "--anl-llm-service",
+                "ALCF-METIS",
+                "--base-url",
+                "https://example.test/v1",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "--base-url cannot be used with multiple" in result.output
+
     def test_request_mode_supports_argo_service(self, tmp_path, monkeypatch):
         source = tmp_path / "sectionized"
         output = tmp_path / "judged"
