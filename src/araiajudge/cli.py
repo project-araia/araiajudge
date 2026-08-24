@@ -8,7 +8,7 @@ from typing import Iterable
 import click
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 
-from araiajudge.artifacts import summarize_results_file, summarize_results_directory, write_summary
+from araiajudge.artifacts import summarize_results_file, write_summary
 from araiajudge.constants import DEFAULT_BASE_URL, DEFAULT_MODEL, VALID_DECISIONS
 from araiajudge.docs import (
     count_sectionized_doc_files,
@@ -80,7 +80,6 @@ def _write_judge_run_artifacts(
     summary_path: Path,
     failures_path: Path,
     api_key_provided: bool,
-    aggregate_dir: Path | None = None,
 ) -> None:
     # Failures are written by run_requests; remove stale file on success
     if stats.get("failures"):
@@ -94,21 +93,14 @@ def _write_judge_run_artifacts(
         expected_input_hashes[doc["source_path"]] = doc_input_sha256(doc)
         total_discovered += 1
 
-    if aggregate_dir is not None:
-        cumulative = summarize_results_directory(
-            aggregate_dir,
-            model=model,
-            prompt_sha256=prompt_sha256,
-            expected_input_hashes=expected_input_hashes,
-        )
-    else:
-        cumulative = summarize_results_file(
-            result_path,
-            model=model,
-            base_url=base_url,
-            prompt_sha256=prompt_sha256,
-            expected_input_hashes=expected_input_hashes,
-        )
+    cumulative = summarize_results_file(
+        result_path,
+        model=model,
+        base_url=base_url,
+        prompt_sha256=prompt_sha256,
+        expected_input_hashes=expected_input_hashes,
+        base_urls={backend["base_url"] for backend in stats.get("backends", {}).values()},
+    )
     write_summary(
         summary_path,
         source=source,
@@ -226,27 +218,6 @@ def _write_judge_run_artifacts(
     show_default=True,
     help="Skip completed stable job keys from judge_checkpoint.json.",
 )
-@click.option(
-    "--append-session",
-    is_flag=True,
-    help=(
-        "Join an existing run; write per-session files and coordinate via per-doc locks. "
-        "In this mode, summaries aggregate across all session result files. "
-        "Session checkpoints are separate (judge_checkpoint.<session-id>.json)."
-    ),
-)
-@click.option(
-    "--session-id",
-    default=None,
-    help="Optional session label. Defaults to timestamp-pid-host.",
-)
-@click.option(
-    "--lock-ttl",
-    default=600,
-    show_default=True,
-    type=click.IntRange(1),
-    help="Seconds after which a stale per-doc lock can be stolen.",
-)
 def agentic_judge_dataset(
     *,
     source: Path,
@@ -266,9 +237,6 @@ def agentic_judge_dataset(
     copy_kept: bool,
     keep_decisions: str,
     resume: bool,
-    append_session: bool,
-    session_id: str | None,
-    lock_ttl: int,
 ) -> None:
     # Resolve service presets. Multiple services share one job stream and one model.
     service_keys = tuple(dict.fromkeys((service or "ARGO").upper() for service in anl_llm_service))
@@ -326,74 +294,9 @@ def agentic_judge_dataset(
     if limit is not None:
         docs_iter = itertools.islice(docs_iter, limit)
 
-    # Determine session mode and id only when requested
-    session_mode = bool(append_session or session_id)
-    if session_mode and session_id is None:
-        # ts-pid-host pattern without importing socket for minimal deps if not needed
-        try:
-            import os, socket, time as _t
-            session_id = f"{int(_t.time())}-{os.getpid()}-{socket.gethostname().split('.')[0]}"
-        except Exception:
-            session_id = "session"
-
-    # Shared-completed set across legacy and per-session result files
-    shared_completed_keys: set[str] = set()
-
     checkpoint_path = output_dir / "judge_checkpoint.json"
     checkpoint = load_json(checkpoint_path, {"completed_keys": []}) if resume else {"completed_keys": []}
     completed_keys = set(checkpoint.get("completed_keys", []))
-
-    # Validate/prepare append mode
-    if append_session:
-        if not output_dir.exists():
-            raise click.UsageError("--append-session requires an existing output directory")
-        # Validate model/prompt against summary if present
-        summary_path = output_dir / "judge_summary.json"
-        if summary_path.exists():
-            try:
-                summary = json.loads(summary_path.read_text(encoding="utf-8"))
-                if summary.get("prompt_sha256") != prompt_sha256 or summary.get("model") != resolved_model:
-                    raise click.UsageError(
-                        "--append-session requires matching model and prompt (prompt_sha256)."
-                    )
-            except Exception:
-                pass
-
-    # Build shared-completed by scanning all result files when in session mode
-    if session_mode and output_dir.exists():
-        expected_input_hashes = {}
-        for doc in iter_sectionized_docs(source):
-            expected_input_hashes[doc["source_path"]] = doc_input_sha256(doc)
-        # Use summarize_results_directory logic to scan files but we need keys; implement inline here
-        import gzip
-        for path in sorted(output_dir.glob("judge_results*.jsonl.gz")):
-            try:
-                with gzip.open(path, "rt", encoding="utf-8") as f:
-                    for line in f:
-                        if not line.strip():
-                            continue
-                        try:
-                            row = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        if row.get("model") != resolved_model or row.get("prompt_sha256") != prompt_sha256:
-                            continue
-                        sp = row.get("source_path"); ih = row.get("input_sha256")
-                        if expected_input_hashes.get(sp) != ih:
-                            continue
-                        # For shared key, base_url is irrelevant; use docs.job_shared_key shape
-                        from araiajudge.docs import job_shared_key
-                        shared_completed_keys.add(
-                            job_shared_key(
-                                source_path=sp,
-                                doc_id=row.get("doc_id", ""),
-                                input_sha256=ih,
-                                prompt_sha256=prompt_sha256,
-                                model=resolved_model,
-                            )
-                        )
-            except OSError:
-                continue
 
     job_stats: dict[str, int] = {}
     jobs = prepare_doc_jobs_stream(
@@ -406,7 +309,6 @@ def agentic_judge_dataset(
         completed_keys=completed_keys,
         resume=resume,
         stats=job_stats,
-        shared_completed_keys=shared_completed_keys,
     )
 
     if dry_run:
@@ -447,19 +349,9 @@ def agentic_judge_dataset(
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "judge_summary.json"
 
-    # Result/CSV/Checkpoint/Failures paths depend on sessionization mode
-    if append_session or session_mode:
-        result_path = output_dir / f"judge_results.{session_id}.jsonl.gz"
-        decision_csv_path = output_dir / f"judge_decisions.{session_id}.csv"
-        checkpoint_path = output_dir / f"judge_checkpoint.{session_id}.json"
-        failures_path = output_dir / f"failures.{session_id}.json"
-        lock_dir = output_dir / "locks"
-    else:
-        checkpoint_path = output_dir / "judge_checkpoint.json"
-        result_path = output_dir / "judge_results.jsonl.gz"
-        decision_csv_path = output_dir / "judge_decisions.csv"
-        failures_path = output_dir / "failures.json"
-        lock_dir = None
+    result_path = output_dir / "judge_results.jsonl.gz"
+    decision_csv_path = output_dir / "judge_decisions.csv"
+    failures_path = output_dir / "failures.json"
 
     with Progress(SpinnerColumn(), *Progress.get_default_columns(), TimeElapsedColumn()) as progress:
         stats = run_requests(
@@ -482,8 +374,6 @@ def agentic_judge_dataset(
             decision_csv_path=decision_csv_path,
             argo_user=argo_user,
             progress=progress,
-            lock_dir=lock_dir,
-            lock_ttl=lock_ttl,
             backends=backends,
         )
 
@@ -505,7 +395,6 @@ def agentic_judge_dataset(
             summary_path=summary_path,
             failures_path=failures_path,
             api_key_provided=bool(api_key),
-            aggregate_dir=output_dir if (append_session or session_mode) else None,
         )
         progress.log("\n* Agentic judging complete.")
         progress.log(f"* Output directory: {output_dir}")

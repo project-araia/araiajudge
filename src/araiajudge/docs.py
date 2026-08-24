@@ -81,16 +81,3 @@ def job_key(
 ) -> str:
     raw = "\n".join([source_path, doc_id, input_sha256, prompt_sha256, model, base_url])
     return sha256_text(raw)
-
-
-def job_shared_key(
-    *,
-    source_path: str,
-    doc_id: str,
-    input_sha256: str,
-    prompt_sha256: str,
-    model: str,
-) -> str:
-    """Provider-agnostic job key (excludes base_url) for cross-session dedup/locking."""
-    raw = "\n".join([source_path, doc_id, input_sha256, prompt_sha256, model])
-    return sha256_text(raw)
