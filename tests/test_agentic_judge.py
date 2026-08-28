@@ -371,7 +371,7 @@ class TestAgenticJudgeCli:
         output = tmp_path / "judged"
         prompt = tmp_path / "rubric.md"
         prompt.write_text("Judge utility relevance.", encoding="utf-8")
-        for doc_id in range(1, 5):
+        for doc_id in range(1, 7):
             _write_sectionized_doc(
                 source / "00" / f"{doc_id}.json",
                 title=f"Grid {doc_id}",
@@ -406,6 +406,8 @@ class TestAgenticJudgeCli:
                 "ALCF-SOPHIA",
                 "--anl-llm-service",
                 "ALCF-METIS",
+                "--anl-llm-service",
+                "ALCF-MINERVA",
                 "--concurrency",
                 "1",
             ],
@@ -415,15 +417,17 @@ class TestAgenticJudgeCli:
         assert {check["base_url"] for check in checks} == {
             "https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1",
             "https://inference-api.alcf.anl.gov/resource_server/metis/api/v1",
+            "https://inference-api.alcf.anl.gov/resource_server/minerva/api/v1",
         }
         assert {check["model"] for check in checks} == {
             "openai/gpt-oss-120b",
             "gpt-oss-120b",
         }
-        assert len(calls) == 4
+        assert len(calls) == 6
         assert {call["base_url"] for call in calls} == {
             "https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1",
             "https://inference-api.alcf.anl.gov/resource_server/metis/api/v1",
+            "https://inference-api.alcf.anl.gov/resource_server/minerva/api/v1",
         }
         assert {call["model"] for call in calls} == {
             "openai/gpt-oss-120b",
@@ -432,11 +436,17 @@ class TestAgenticJudgeCli:
 
         with gzip.open(output / "judge_results.jsonl.gz", "rt", encoding="utf-8") as f:
             rows = [json.loads(line) for line in f]
-        assert len(rows) == 4
-        assert {row["service"] for row in rows} == {"ALCF-SOPHIA", "ALCF-METIS"}
+        assert len(rows) == 6
+        assert {row["service"] for row in rows} == {
+            "ALCF-SOPHIA",
+            "ALCF-METIS",
+            "ALCF-MINERVA",
+        }
         summary = json.loads((output / "judge_summary.json").read_text(encoding="utf-8"))
         assert summary["backends"]["ALCF-METIS"]["attempted"] == 2
         assert summary["backends"]["ALCF-METIS"]["succeeded"] == 2
+        assert summary["backends"]["ALCF-MINERVA"]["attempted"] == 2
+        assert summary["backends"]["ALCF-MINERVA"]["succeeded"] == 2
         assert summary["backends"]["ALCF-SOPHIA"]["attempted"] == 2
         assert summary["backends"]["ALCF-SOPHIA"]["succeeded"] == 2
 

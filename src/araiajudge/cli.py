@@ -41,7 +41,7 @@ _SERVICE_PRESETS = {
     "ALCF-MINERVA": {
         "style": "openai",
         "base_url": "https://inference-api.alcf.anl.gov/resource_server/minerva/api/v1",
-        "default_model": "openai/gpt-oss-120b",
+        "default_model": "gpt-oss-120b",
     },
     "ANL-ASKSAGE": {
         "style": "openai",
