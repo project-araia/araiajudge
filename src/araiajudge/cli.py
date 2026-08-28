@@ -36,7 +36,7 @@ _SERVICE_PRESETS = {
     "ALCF-METIS": {
         "style": "openai",
         "base_url": "https://inference-api.alcf.anl.gov/resource_server/metis/api/v1",
-        "default_model": "openai/gpt-oss-120b",
+        "default_model": "gpt-oss-120b",
     },
     "ALCF-MINERVA": {
         "style": "openai",
@@ -250,7 +250,7 @@ def agentic_judge_dataset(
     for service_key in service_keys:
         preset = _SERVICE_PRESETS[service_key]
         backend_model = model or preset.get("default_model") or DEFAULT_MODEL
-        if backend_model != resolved_model:
+        if model and backend_model != resolved_model:
             raise click.UsageError(
                 "Multiple backends must use one model; provide a shared --model value."
             )
@@ -258,7 +258,7 @@ def agentic_judge_dataset(
             "service": service_key,
             "provider": preset["style"],
             "base_url": base_url or preset["base_url"] or DEFAULT_BASE_URL,
-            "model": resolved_model,
+            "model": backend_model,
             "api_key": api_key,
             "argo_user": argo_user,
         })
@@ -333,7 +333,7 @@ def agentic_judge_dataset(
                 provider=backend["provider"],
                 api_key=api_key,
                 base_url=backend["base_url"],
-                model=resolved_model,
+                model=backend["model"],
                 argo_user=argo_user,
                 timeout=timeout,
             )

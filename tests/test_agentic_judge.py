@@ -416,10 +416,18 @@ class TestAgenticJudgeCli:
             "https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1",
             "https://inference-api.alcf.anl.gov/resource_server/metis/api/v1",
         }
+        assert {check["model"] for check in checks} == {
+            "openai/gpt-oss-120b",
+            "gpt-oss-120b",
+        }
         assert len(calls) == 4
         assert {call["base_url"] for call in calls} == {
             "https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1",
             "https://inference-api.alcf.anl.gov/resource_server/metis/api/v1",
+        }
+        assert {call["model"] for call in calls} == {
+            "openai/gpt-oss-120b",
+            "gpt-oss-120b",
         }
 
         with gzip.open(output / "judge_results.jsonl.gz", "rt", encoding="utf-8") as f:
