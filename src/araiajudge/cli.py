@@ -340,6 +340,7 @@ def agentic_judge_dataset(
                 model=backend["model"],
                 argo_user=argo_user,
                 timeout=timeout,
+                max_tokens=max_tokens,
             )
         except Exception as exc:
             raise click.UsageError(

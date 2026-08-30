@@ -155,6 +155,7 @@ def check_connection(
     model: str,
     argo_user: str | None,
     timeout: float,
+    max_tokens: int = 512,
 ) -> str:
     """Make a small request to validate provider connectivity and credentials."""
     probe_prompt = 'Return exactly this JSON: {"decision":"relevant","score":3,"rationale":"probe"}.'
@@ -164,7 +165,7 @@ def check_connection(
             model=model,
             prompt=probe_prompt,
             argo_user=argo_user or "",
-            max_tokens=32,
+            max_tokens=max_tokens,
             timeout=timeout,
         )
     return chat_completion_with_retries(
@@ -172,7 +173,7 @@ def check_connection(
         base_url=base_url,
         model=model,
         prompt=probe_prompt,
-        max_tokens=32,
+        max_tokens=max_tokens,
         timeout=timeout,
     )
 
@@ -275,6 +276,7 @@ def run_requests(
                         model=backend["model"],
                         argo_user=backend.get("argo_user"),
                         timeout=timeout,
+                        max_tokens=max_tokens,
                     )
                 except Exception as error:
                     if is_transient_error(error):

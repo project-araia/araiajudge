@@ -177,6 +177,26 @@ class TestProviderResponses:
         with pytest.raises(RuntimeError, match="empty completion"):
             runners.response_content({"choices": [{"message": {"content": None}}]})
 
+    def test_connection_probe_uses_configured_token_budget(self, monkeypatch):
+        calls = []
+
+        def fake_completion(**kwargs):
+            calls.append(kwargs)
+            return "probe"
+
+        monkeypatch.setattr(runners, "chat_completion_with_retries", fake_completion)
+
+        assert runners.check_connection(
+            provider="openai",
+            api_key="secret",
+            base_url="https://example.test/v1",
+            model="model",
+            argo_user=None,
+            timeout=1,
+            max_tokens=512,
+        ) == "probe"
+        assert calls[0]["max_tokens"] == 512
+
 
 class TestBackendFailover:
     def test_reassigns_transient_backend_failures(self, tmp_path, monkeypatch):
