@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from click.testing import CliRunner
+import pytest
 
 import araiajudge.docs
 import araiajudge.runners as runners
@@ -31,6 +32,17 @@ def _make_job(doc_id: str, prompt: str) -> dict:
         "input_sha256": "x",
         "prompt": prompt,
     }
+
+
+class _Progress:
+    def add_task(self, *args, **kwargs):
+        return 0
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def log(self, *args, **kwargs):
+        pass
 
 
 class TestIterSectionizedDocs:
@@ -141,6 +153,129 @@ class TestKeepDecisionsValidation:
         assert parse_keep_decisions("relevant, maybe") == {"relevant", "maybe"}
 
 
+class TestProviderResponses:
+    def test_cloudflare_html_403_is_transient(self):
+        class Response:
+            status_code = 403
+            text = "<html><title>Cloudflare Block Page</title></html>"
+            headers = {"Content-Type": "text/html", "cf-ray": "abc123"}
+
+        error = runners.ProviderError("OpenAI-compatible", Response())
+
+        assert runners.is_transient_error(error)
+        assert "cf-ray=abc123" in str(error)
+
+    def test_json_403_is_not_transient(self):
+        class Response:
+            status_code = 403
+            text = '{"error":"forbidden"}'
+            headers = {"Content-Type": "application/json"}
+
+        assert not runners.is_transient_error(runners.ProviderError("OpenAI-compatible", Response()))
+
+    def test_rejects_empty_completion(self):
+        with pytest.raises(RuntimeError, match="empty completion"):
+            runners.response_content({"choices": [{"message": {"content": None}}]})
+
+
+class TestBackendFailover:
+    def test_reassigns_transient_backend_failures(self, tmp_path, monkeypatch):
+        calls = []
+
+        def fake_completion(**kwargs):
+            calls.append(kwargs["base_url"])
+            if kwargs["base_url"] == "https://down.test/v1":
+                raise RuntimeError("OpenAI-compatible 503: unavailable")
+            return '{"decision":"relevant","score":3,"rationale":"Matches."}'
+
+        monkeypatch.setattr(runners, "chat_completion_with_retries", fake_completion)
+        stats = runners.run_requests(
+            jobs=[_make_job(str(index), "judge") for index in range(3)],
+            source=tmp_path,
+            output_dir=tmp_path / "output",
+            provider="openai",
+            api_key="secret",
+            base_url="https://healthy.test/v1",
+            model="model",
+            prompt_sha256="prompt",
+            max_tokens=10,
+            timeout=1,
+            concurrency=1,
+            copy_kept=False,
+            keep_decisions={"relevant"},
+            completed_keys=set(),
+            checkpoint_path=tmp_path / "output" / "checkpoint.json",
+            result_path=tmp_path / "output" / "results.jsonl.gz",
+            decision_csv_path=tmp_path / "output" / "decisions.csv",
+            argo_user=None,
+            progress=_Progress(),
+            backends=[
+                {
+                    "service": "healthy",
+                    "provider": "openai",
+                    "api_key": "secret",
+                    "base_url": "https://healthy.test/v1",
+                    "model": "model",
+                    "argo_user": None,
+                },
+                {
+                    "service": "down",
+                    "provider": "openai",
+                    "api_key": "secret",
+                    "base_url": "https://down.test/v1",
+                    "model": "model",
+                    "argo_user": None,
+                },
+            ],
+        )
+
+        assert stats["succeeded"] == 3
+        assert stats["failed"] == 0
+        assert stats["backends"]["down"]["failed"] == 1
+        assert calls.count("https://down.test/v1") == 1
+        assert calls.count("https://healthy.test/v1") == 3
+
+    def test_restores_backend_after_successful_health_probe(self, tmp_path, monkeypatch):
+        attempts = 0
+
+        def fake_completion(**kwargs):
+            nonlocal attempts
+            if kwargs["prompt"].startswith("Return exactly this JSON:"):
+                return "OK"
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("OpenAI-compatible 503: unavailable")
+            return '{"decision":"relevant","score":3,"rationale":"Matches."}'
+
+        monkeypatch.setattr(runners, "BACKEND_RETRY_SECONDS", 0)
+        monkeypatch.setattr(runners, "chat_completion_with_retries", fake_completion)
+        stats = runners.run_requests(
+            jobs=[_make_job("1", "judge")],
+            source=tmp_path,
+            output_dir=tmp_path / "output",
+            provider="openai",
+            api_key="secret",
+            base_url="https://backend.test/v1",
+            model="model",
+            prompt_sha256="prompt",
+            max_tokens=10,
+            timeout=1,
+            concurrency=1,
+            copy_kept=False,
+            keep_decisions={"relevant"},
+            completed_keys=set(),
+            checkpoint_path=tmp_path / "output" / "checkpoint.json",
+            result_path=tmp_path / "output" / "results.jsonl.gz",
+            decision_csv_path=tmp_path / "output" / "decisions.csv",
+            argo_user=None,
+            progress=_Progress(),
+        )
+
+        assert attempts == 2
+        assert stats["succeeded"] == 1
+        assert stats["failed"] == 0
+
+
 class TestAgenticJudgeCli:
     def test_connection_check_runs_before_requests(self, tmp_path, monkeypatch):
         source = tmp_path / "sectionized"
@@ -180,6 +315,7 @@ class TestAgenticJudgeCli:
 
         assert result.exit_code == 0, result.output
         assert len(checks) == 1
+        assert "Request configuration: 1 concurrent requests across 1 backend(s); up to 50000 document characters per request" in result.output
         assert "Connection check succeeded: OK" in result.output
 
     def test_dry_run_prints_prompts_without_api_key(self, tmp_path):
@@ -443,12 +579,9 @@ class TestAgenticJudgeCli:
             "ALCF-MINERVA",
         }
         summary = json.loads((output / "judge_summary.json").read_text(encoding="utf-8"))
-        assert summary["backends"]["ALCF-METIS"]["attempted"] == 2
-        assert summary["backends"]["ALCF-METIS"]["succeeded"] == 2
-        assert summary["backends"]["ALCF-MINERVA"]["attempted"] == 2
-        assert summary["backends"]["ALCF-MINERVA"]["succeeded"] == 2
-        assert summary["backends"]["ALCF-SOPHIA"]["attempted"] == 2
-        assert summary["backends"]["ALCF-SOPHIA"]["succeeded"] == 2
+        assert sum(backend["attempted"] for backend in summary["backends"].values()) == 6
+        assert sum(backend["succeeded"] for backend in summary["backends"].values()) == 6
+        assert all(backend["succeeded"] > 0 for backend in summary["backends"].values())
 
     def test_rejects_custom_url_with_multiple_services(self, tmp_path):
         source = tmp_path / "sectionized"
@@ -517,7 +650,7 @@ class TestAgenticJudgeCli:
 
         assert result.exit_code == 0, result.output
         assert len(calls) == 2
-        assert calls[0]["prompt"] == "Reply with OK."
+        assert calls[0]["prompt"].startswith("Return exactly this JSON:")
         assert calls[1]["argo_user"] == "user1"
         assert calls[1]["model"] == "claudesonnet46"
         with gzip.open(output / "judge_results.jsonl.gz", "rt", encoding="utf-8") as f:

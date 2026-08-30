@@ -91,12 +91,14 @@ SOURCE_judged/
 - ARGO (default): base `https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/`; default model `claudesonnet46`.
 - ALCF-SOPHIA: base `https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1`; default model `openai/gpt-oss-120b`.
 - ALCF-METIS: base `https://inference-api.alcf.anl.gov/resource_server/metis/api/v1`; default model `gpt-oss-120b`.
-- ALCF-MINERVA: base `https://inference-api.alcf.anl.gov/resource_server/minerva/api/v1`; default model `openai/gpt-oss-120b`.
+- ALCF-MINERVA: base `https://inference-api.alcf.anl.gov/resource_server/minerva/api/v1`; default model `gpt-oss-120b`.
 - ANL-ASKSAGE: base `https://api.asksage.anl.gov/server/openai/v1`; default model `gpt_5.4_nano`. Use OpenAI-style models/options only when targeting AskSage (for now).
 
 #### Result Schema and Resume
 - Each result row includes doc_id, source_path, title, service, model, base URL, prompt and input hashes, decision, score, rationale, raw response, parse status, and timestamp.
 - With multiple services, rows share one result stream and record the service that handled each document. Summaries include per-service attempted, succeeded, and failed counts.
+- If a backend has an exhausted transient request failure, including a Cloudflare HTML block page, it is removed from scheduling and its work is reassigned to healthy backends. The backend is probed once per hour and automatically restored after a successful probe. If all backends are unavailable, the run waits for the next hourly probe. A job is retried at most 24 times across transient backend failures before being written to `failures.json`.
+- JSON `401`/`403` responses remain permanent credential or authorization failures. Cloudflare block diagnostics include `Retry-After` and `cf-ray` headers when supplied.
 - Resume is enabled by default. Completed keys include source path, document ID, input hash, prompt hash, model, and base URL.
 - `--output-dir` must be outside `SOURCE` so the command cannot recurse into its own artifacts.
 

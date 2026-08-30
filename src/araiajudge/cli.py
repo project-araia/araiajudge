@@ -288,6 +288,10 @@ def agentic_judge_dataset(
 
     discovered_count = count_sectionized_doc_files(source)
     click.echo(f"Scanning source: {discovered_count} candidate JSON files")
+    click.echo(
+        f"Request configuration: {len(backends) * concurrency} concurrent requests "
+        f"across {len(backends)} backend(s); up to {max_input_chars} document characters per request"
+    )
 
     discovery_stats: dict[str, int] = {}
     docs_iter: Iterable[dict] = iter_sectionized_docs_stream(source, discovery_stats)
