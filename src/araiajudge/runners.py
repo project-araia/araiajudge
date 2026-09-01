@@ -358,7 +358,7 @@ def run_requests(
                         if transient_attempts[job["key"]] < MAX_TRANSIENT_JOB_ATTEMPTS:
                             retry_jobs.appendleft(job)
                             progress.log(
-                                f"* Backend {backend['service']} is unavailable; retrying its work in one hour."
+                                f"* Backend {backend['service']} is unavailable; retrying its work in one hour. Error: {error}"
                             )
                         else:
                             stats["failed"] += 1
