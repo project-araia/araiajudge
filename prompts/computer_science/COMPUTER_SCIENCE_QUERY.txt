@@ -1,0 +1,680 @@
+(
+(
+"computer algorithm" OR
+"algorithm design" OR
+"algorithm analysis" OR
+"algorithmic technique" OR
+"data structure" OR
+"graph algorithm" OR
+"sorting algorithm" OR
+"search algorithm" OR
+"string algorithm" OR
+"approximation algorithm" OR
+"randomized algorithm" OR
+"online algorithm" OR
+"parallel algorithm" OR
+"distributed algorithm" OR
+"greedy algorithm" OR
+"dynamic programming" OR
+"divide and conquer" OR
+"branch and bound" OR
+"computational geometry" OR
+"combinatorial optimization" OR
+"shortest path algorithm" OR
+"maximum flow algorithm" OR
+"hash table" OR
+"binary search tree" OR
+"priority queue" OR
+"Bloom filter"
+)
+OR
+(
+"theoretical computer science" OR
+"computational complexity" OR
+"complexity theory" OR
+"complexity class" OR
+"time complexity" OR
+"space complexity" OR
+"NP-hard" OR
+"NP-complete" OR
+"polynomial time algorithm" OR
+"parameterized complexity" OR
+"automata theory" OR
+"formal language theory" OR
+"computability theory" OR
+"Turing machine" OR
+"lambda calculus" OR
+"type theory" OR
+"proof assistant" OR
+"automated theorem proving" OR
+"formal verification" OR
+"model checking" OR
+"program verification" OR
+"program semantics" OR
+"temporal logic" OR
+"Hoare logic" OR
+"satisfiability problem" OR
+"SAT solver" OR
+"SMT solver"
+)
+OR
+(
+"programming language" OR
+"programming language design" OR
+"programming language semantics" OR
+"compiler design" OR
+"compiler optimization" OR
+"optimizing compiler" OR
+"compiler construction" OR
+"source-to-source compiler" OR
+"just-in-time compilation" OR
+"ahead-of-time compilation" OR
+"intermediate representation" OR
+"abstract syntax tree" OR
+"lexical analysis" OR
+"syntax analysis" OR
+"code generation" OR
+"register allocation" OR
+"instruction scheduling" OR
+"static program analysis" OR
+"data-flow analysis" OR
+"control-flow analysis" OR
+"binary analysis" OR
+"domain-specific language" OR
+"functional programming" OR
+"object-oriented programming" OR
+"logic programming" OR
+"concurrent programming" OR
+"runtime system" OR
+"language virtual machine" OR
+"bytecode interpreter" OR
+"garbage collection" OR
+"memory safety" OR
+"type system" OR
+"type inference"
+)
+OR
+(
+"operating system" OR
+"operating systems" OR
+"operating system kernel" OR
+"kernel module" OR
+"system call" OR
+"process scheduling" OR
+"CPU scheduling" OR
+"thread scheduling" OR
+"memory management" OR
+"virtual memory" OR
+"memory allocation" OR
+"dynamic memory allocation" OR
+"heap allocation" OR
+"memory allocator" OR
+"memory hierarchy" OR
+"page replacement" OR
+"page fault" OR
+"address space" OR
+"memory protection" OR
+"shared memory" OR
+"persistent memory programming" OR
+"file system" OR
+"distributed file system" OR
+"storage system" OR
+"device driver" OR
+"process synchronization" OR
+"thread synchronization" OR
+"concurrency control" OR
+"concurrent data structure" OR
+"mutual exclusion" OR
+"race condition" OR
+"deadlock detection" OR
+"lock-free algorithm" OR
+"wait-free algorithm" OR
+"multithreading" OR
+"container runtime" OR
+"operating system virtualization"
+)
+OR
+(
+"computer architecture" OR
+"processor architecture" OR
+"microarchitecture" OR
+"instruction set architecture" OR
+"processor design" OR
+"multicore processor" OR
+"manycore processor" OR
+"superscalar processor" OR
+"out-of-order execution" OR
+"branch prediction" OR
+"cache coherence" OR
+"cache hierarchy" OR
+"hardware prefetching" OR
+"memory consistency model" OR
+"hardware accelerator" OR
+"graphics processing unit" OR
+"general-purpose GPU" OR
+"field-programmable gate array" OR
+"application-specific integrated circuit" OR
+"neuromorphic computing" OR
+"parallel computing" OR
+"high-performance computing" OR
+"heterogeneous computing" OR
+"cluster computing" OR
+"message passing interface" OR
+"shared-memory programming" OR
+"performance profiling" OR
+"computer performance modeling"
+)
+OR
+(
+"software engineering" OR
+"software architecture" OR
+"software design pattern" OR
+"software development lifecycle" OR
+"software development process" OR
+"requirements engineering" OR
+"software requirements" OR
+"software maintenance" OR
+"software evolution" OR
+"legacy software" OR
+"software modernization" OR
+"software refactoring" OR
+"program comprehension" OR
+"source code analysis" OR
+"code clone detection" OR
+"software repository mining" OR
+"software defect prediction" OR
+"bug localization" OR
+"fault localization" OR
+"automated program repair" OR
+"software testing" OR
+"unit testing" OR
+"integration testing" OR
+"regression testing" OR
+"property-based testing" OR
+"fuzz testing" OR
+"continuous integration" OR
+"continuous delivery" OR
+"DevOps" OR
+"software configuration management" OR
+"version control system" OR
+"application programming interface" OR
+"microservice architecture" OR
+"software product line" OR
+"technical debt" OR
+"open-source software"
+)
+OR
+(
+"database system" OR
+"database management system" OR
+"relational database" OR
+"distributed database" OR
+"parallel database" OR
+"in-memory database" OR
+"cloud database" OR
+"NoSQL database" OR
+"graph database" OR
+"document database" OR
+"key-value store" OR
+"column-oriented database" OR
+"database transaction" OR
+"transaction processing" OR
+"transaction isolation" OR
+"query processing" OR
+"query optimization" OR
+"database indexing" OR
+"database schema" OR
+"data warehouse" OR
+"data lake" OR
+"stream processing" OR
+"data stream management" OR
+"data provenance" OR
+"data integration" OR
+"data cleaning" OR
+"information retrieval" OR
+"document retrieval" OR
+"web search engine" OR
+"search engine indexing" OR
+"ranking algorithm" OR
+"recommender system" OR
+"knowledge graph" OR
+"semantic web"
+)
+OR
+(
+"distributed system" OR
+"distributed systems" OR
+"distributed computing" OR
+"distributed consensus" OR
+"consensus protocol" OR
+"fault-tolerant system" OR
+"Byzantine fault tolerance" OR
+"replicated state machine" OR
+"distributed transaction" OR
+"eventual consistency" OR
+"strong consistency" OR
+"cloud computing" OR
+"cloud-native application" OR
+"cloud resource management" OR
+"serverless computing" OR
+"function as a service" OR
+"infrastructure as a service" OR
+"platform as a service" OR
+"software as a service" OR
+"virtual machine migration" OR
+"container orchestration" OR
+"resource scheduling" OR
+"load balancing" OR
+"edge computing" OR
+"fog computing" OR
+"mobile edge computing" OR
+"peer-to-peer system" OR
+"grid computing" OR
+"distributed ledger" OR
+"blockchain protocol" OR
+"smart contract" OR
+"remote procedure call"
+)
+OR
+(
+"computer network" OR
+"computer networking" OR
+"network architecture" OR
+"network protocol" OR
+"network stack" OR
+"internet protocol" OR
+"transport protocol" OR
+"routing protocol" OR
+"congestion control" OR
+"packet scheduling" OR
+"packet switching" OR
+"software-defined networking" OR
+"network function virtualization" OR
+"content delivery network" OR
+"peer-to-peer network" OR
+"wireless sensor network" OR
+"mobile ad hoc network" OR
+"delay-tolerant network" OR
+"data center network" OR
+"network measurement" OR
+"network telemetry" OR
+"network simulation" OR
+"network performance" OR
+"network traffic analysis" OR
+"quality of service" OR
+"domain name system" OR
+"border gateway protocol" OR
+"multipath TCP" OR
+"information-centric networking" OR
+"Internet of Things" OR
+"machine-to-machine communication"
+)
+OR
+(
+"computer security" OR
+"cybersecurity" OR
+"information security" OR
+"network security" OR
+"software security" OR
+"systems security" OR
+"application security" OR
+"operating system security" OR
+"cloud security" OR
+"database security" OR
+"web security" OR
+"mobile security" OR
+"hardware security" OR
+"usable security" OR
+"security protocol" OR
+"access control" OR
+"authentication protocol" OR
+"authorization policy" OR
+"identity management" OR
+"intrusion detection" OR
+"intrusion prevention" OR
+"malware detection" OR
+"malware analysis" OR
+"ransomware" OR
+"computer virus" OR
+"software vulnerability" OR
+"vulnerability detection" OR
+"exploit mitigation" OR
+"buffer overflow" OR
+"code injection" OR
+"side-channel attack" OR
+"denial-of-service attack" OR
+"digital forensics" OR
+"computer forensics" OR
+"privacy-preserving computation" OR
+"differential privacy" OR
+"secure multiparty computation" OR
+"homomorphic encryption" OR
+"public-key cryptography" OR
+"post-quantum cryptography" OR
+"zero-knowledge proof"
+)
+OR
+(
+"artificial intelligence" OR
+"machine learning" OR
+"deep learning" OR
+"artificial neural network" OR
+"representation learning" OR
+"supervised learning" OR
+"unsupervised learning" OR
+"semi-supervised learning" OR
+"self-supervised learning" OR
+"reinforcement learning" OR
+"federated learning" OR
+"transfer learning" OR
+"continual learning" OR
+"few-shot learning" OR
+"machine learning model" OR
+"foundation model" OR
+"large language model" OR
+"generative model" OR
+"generative adversarial network" OR
+"transformer model" OR
+"diffusion model" OR
+"decision tree classifier" OR
+"support vector machine" OR
+"Bayesian network" OR
+"probabilistic graphical model" OR
+"automated planning" OR
+"knowledge representation" OR
+"machine reasoning" OR
+"multi-agent system" OR
+"explainable artificial intelligence" OR
+"adversarial machine learning" OR
+"natural language processing" OR
+"machine translation" OR
+"speech recognition" OR
+"speech synthesis" OR
+"question answering" OR
+"information extraction"
+)
+OR
+(
+"computer vision" OR
+"machine vision" OR
+"image recognition" OR
+"object detection" OR
+"object recognition" OR
+"image segmentation" OR
+"semantic segmentation" OR
+"instance segmentation" OR
+"visual tracking" OR
+"pose estimation" OR
+"scene understanding" OR
+"three-dimensional reconstruction" OR
+"structure from motion" OR
+"optical flow" OR
+"computer graphics" OR
+"graphics rendering" OR
+"real-time rendering" OR
+"physically based rendering" OR
+"ray tracing" OR
+"rasterization" OR
+"geometric modeling" OR
+"mesh processing" OR
+"computer animation" OR
+"virtual reality" OR
+"augmented reality" OR
+"mixed reality" OR
+"multimedia system" OR
+"video coding" OR
+"image compression" OR
+"video compression" OR
+"content-based image retrieval" OR
+"information visualization" OR
+"scientific visualization"
+)
+OR
+(
+"human-computer interaction" OR
+"human computer interaction" OR
+"user interface design" OR
+"graphical user interface" OR
+"user experience design" OR
+"interaction design" OR
+"interactive system" OR
+"user-centered design" OR
+"human-centered computing" OR
+"computer-supported cooperative work" OR
+"ubiquitous computing" OR
+"pervasive computing" OR
+"mobile computing" OR
+"wearable computing" OR
+"tangible user interface" OR
+"natural user interface" OR
+"brain-computer interface" OR
+"eye-tracking interface" OR
+"gesture recognition" OR
+"accessible computing" OR
+"assistive computing" OR
+"web accessibility" OR
+"software accessibility" OR
+"usability evaluation" OR
+"usability testing" OR
+"human-robot interaction" OR
+"social computing" OR
+"collaborative computing" OR
+"crowdsourcing platform"
+)
+OR
+(
+"robot operating system" OR
+"autonomous robot" OR
+"mobile robot" OR
+"humanoid robot" OR
+"service robot" OR
+"industrial robot programming" OR
+"robot motion planning" OR
+"robot path planning" OR
+"robot navigation" OR
+"robot localization" OR
+"robot mapping" OR
+"simultaneous localization and mapping" OR
+"robot perception" OR
+"robot learning" OR
+"robot manipulation" OR
+"robot grasping" OR
+"multi-robot system" OR
+"swarm robotics" OR
+"autonomous system software" OR
+"autonomous vehicle software" OR
+"self-driving vehicle" OR
+"unmanned aerial vehicle navigation" OR
+"motion planning algorithm" OR
+"trajectory planning" OR
+"behavior planning" OR
+"sensor fusion algorithm"
+)
+OR
+(
+"quantum computing" OR
+"quantum computer" OR
+"quantum algorithm" OR
+"quantum programming" OR
+"quantum circuit" OR
+"quantum error correction" OR
+"quantum software" OR
+"embedded system" OR
+"embedded software" OR
+"real-time system" OR
+"real-time operating system" OR
+"cyber-physical system" OR
+"safety-critical software" OR
+"firmware analysis" OR
+"microcontroller programming" OR
+"sensor operating system" OR
+"approximate computing" OR
+"in-memory computing" OR
+"reconfigurable computing" OR
+"DNA computing" OR
+"optical computing" OR
+"edge intelligence"
+)
+)
+AND
+(
+"computer science" OR
+"computing research" OR
+"computational method" OR
+"computational model" OR
+"computer system" OR
+"computer systems" OR
+"computing system" OR
+"software system" OR
+"software application" OR
+"software development" OR
+"software implementation" OR
+"source code" OR
+"computer program" OR
+"programming language" OR
+"computer algorithm" OR
+"algorithm design" OR
+"data structure" OR
+"operating system" OR
+"computer architecture" OR
+"distributed system" OR
+"database system" OR
+"computer network" OR
+"network protocol" OR
+"cloud computing" OR
+"edge computing" OR
+"cybersecurity" OR
+"computer security" OR
+"artificial intelligence" OR
+"machine learning" OR
+"natural language processing" OR
+"computer vision" OR
+"computer graphics" OR
+"human-computer interaction" OR
+"robotics software" OR
+"autonomous system software" OR
+"embedded system" OR
+"quantum computing" OR
+"runtime system" OR
+"compiler" OR
+"processor architecture" OR
+"computer memory" OR
+"digital computation" OR
+"information technology"
+)
+NOT
+(
+"computational biology" OR
+"bioinformatics" OR
+"biomedical informatics" OR
+"health informatics" OR
+"medical informatics" OR
+"clinical informatics" OR
+"clinical decision support" OR
+"electronic health record" OR
+"medical image analysis" OR
+"computer-aided diagnosis" OR
+"drug discovery" OR
+"drug design" OR
+"protein structure prediction" OR
+"protein folding" OR
+"protein interaction network" OR
+"gene regulatory network" OR
+"gene expression" OR
+"genome sequencing" OR
+"genomic analysis" OR
+"transcriptomic analysis" OR
+"metabolomic analysis" OR
+"systems biology" OR
+"synthetic biology" OR
+"molecular biology" OR
+"cell biology" OR
+"clinical trial" OR
+"patient outcome" OR
+"disease diagnosis" OR
+"cancer diagnosis" OR
+"tumor segmentation" OR
+"pathogen detection" OR
+"epidemiological model" OR
+"public health surveillance" OR
+"computational neuroscience" OR
+"cognitive neuroscience" OR
+"neural circuit" OR
+"biological neural network" OR
+"synaptic plasticity" OR
+"brain network connectivity" OR
+"working memory task" OR
+"episodic memory" OR
+"spatial memory" OR
+"memory consolidation" OR
+"human memory" OR
+"animal learning" OR
+"computational chemistry" OR
+"cheminformatics" OR
+"molecular informatics" OR
+"quantum chemistry" OR
+"density functional theory" OR
+"molecular dynamics simulation" OR
+"molecular docking" OR
+"chemical reaction prediction" OR
+"reaction kinetics" OR
+"catalyst design" OR
+"materials informatics" OR
+"computational materials science" OR
+"crystal structure prediction" OR
+"polymer simulation" OR
+"nanoparticle synthesis" OR
+"thin film deposition" OR
+"computational physics" OR
+"particle physics simulation" OR
+"lattice quantum chromodynamics" OR
+"high-energy physics" OR
+"hadron collider" OR
+"astrophysical simulation" OR
+"astronomical image processing" OR
+"stellar classification" OR
+"galaxy classification" OR
+"cosmological simulation" OR
+"climate model" OR
+"climate modeling" OR
+"weather forecasting model" OR
+"atmospheric simulation" OR
+"computational fluid dynamics" OR
+"finite element analysis" OR
+"finite volume method" OR
+"seismic inversion" OR
+"geophysical modeling" OR
+"remote sensing application" OR
+"geographic information system" OR
+"hydrological model" OR
+"ocean circulation model" OR
+"computational social science" OR
+"digital humanities" OR
+"social network analysis" OR
+"social science research" OR
+"political science" OR
+"economic forecasting" OR
+"econometric model" OR
+"financial market prediction" OR
+"algorithmic trading" OR
+"marketing analytics" OR
+"consumer behavior" OR
+"bibliometric analysis" OR
+"citation network" OR
+"linguistic analysis" OR
+"language acquisition" OR
+"literary analysis" OR
+"ecological network" OR
+"food web" OR
+"metabolic network" OR
+"protein network" OR
+"transportation network" OR
+"road network" OR
+"traffic flow model" OR
+"power grid optimization" OR
+"electric power system" OR
+"water distribution network" OR
+"structural health monitoring" OR
+"building information modeling" OR
+"manufacturing process optimization"
+)
