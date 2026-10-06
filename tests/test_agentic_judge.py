@@ -164,6 +164,17 @@ class TestProviderResponses:
 
         assert runners.is_transient_error(error)
         assert "cf-ray=abc123" in str(error)
+        assert Response.text in str(error)
+
+    def test_truncates_non_cloudflare_error_body(self):
+        class Response:
+            status_code = 403
+            text = "x" * 300
+            headers = {"Content-Type": "application/json"}
+
+        error = runners.ProviderError("OpenAI-compatible", Response())
+
+        assert str(error).count("x") == 200
 
     def test_json_403_is_not_transient(self):
         class Response:

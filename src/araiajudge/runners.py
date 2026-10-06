@@ -7,6 +7,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Iterable
 
+from rich.markup import escape
 from rich.progress import Progress
 
 from araiajudge.artifacts import (
@@ -37,7 +38,7 @@ class ProviderError(RuntimeError):
         for header in ("Retry-After", "cf-ray"):
             if value := response.headers.get(header):
                 diagnostics.append(f"{header}={value}")
-        detail = response.text[:200]
+        detail = response.text if self.cloudflare_blocked else response.text[:200]
         suffix = f" [{' '.join(diagnostics)}]" if diagnostics else ""
         super().__init__(f"{provider} {response.status_code}: {detail}{suffix}")
 
@@ -358,7 +359,7 @@ def run_requests(
                         if transient_attempts[job["key"]] < MAX_TRANSIENT_JOB_ATTEMPTS:
                             retry_jobs.appendleft(job)
                             progress.log(
-                                f"* Backend {backend['service']} is unavailable; retrying its work in one hour. Error: {error}"
+                                f"* Backend {backend['service']} is unavailable; retrying its work in one hour. Error: {escape(str(error))}"
                             )
                         else:
                             stats["failed"] += 1
